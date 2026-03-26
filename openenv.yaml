@@ -1,0 +1,33 @@
+name: linuxops-env
+version: "2.0.0"
+description: >
+  Linux operations remediation environment for AI agent training.
+author: sankara rao
+license: MIT
+
+tasks:
+  - id: security_audit
+    difficulty: easy
+  - id: provisioning_repair
+    difficulty: medium
+  - id: incident_response
+    difficulty: hard
+
+actions:
+  - chmod
+  - chown
+  - ls
+  - stat
+  - disable_service
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  grader: GET /grader
+  tasks: GET /tasks
+  baseline: POST /baseline
+
+deployment:
+  port: 7860
+  dockerfile: Dockerfile
