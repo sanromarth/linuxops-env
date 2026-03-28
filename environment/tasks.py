@@ -2,7 +2,7 @@
 Task registry for LinuxOps-Env.
 
 each task = a sysadmin incident with broken files/services
-that the agent has to fix.
+that the agent has to fix. 5 tasks total, easy to hard.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ TASKS: dict[str, dict[str, Any]] = {
             "/home/sanro/.ssh/authorized_keys": {"permissions": "777", "owner": "sanro"},
             "/etc/shadow":                      {"permissions": "777", "owner": "root"},
             "/etc/sudoers":                     {"permissions": "666", "owner": "root"},
-            "/etc/passwd":                      {"permissions": "644", "owner": "root"},
+            "/etc/passwd":                      {"permissions": "644", "owner": "root"},  # decoy
         },
         "expected_state": {
             "files": {
@@ -36,7 +36,12 @@ TASKS: dict[str, dict[str, Any]] = {
             },
         },
         "penalties": {},
-        "log_context": [],
+        "log_context": [
+            "[AUDIT] WARN: /home/sanro/.ssh/authorized_keys has mode 777 — should be 600",
+            "[AUDIT] CRIT: /etc/shadow is world-readable (mode 777) — credential exposure risk",
+            "[AUDIT] WARN: /etc/sudoers has mode 666 — should be 440 (read-only root+group)",
+            "[AUDIT] OK: /etc/passwd mode 644 — compliant, no action needed",
+        ],
     },
 
     # task 2: medium - perms + ownership
@@ -56,7 +61,7 @@ TASKS: dict[str, dict[str, Any]] = {
             "/etc/ssh/sshd_config": {"permissions": "777", "owner": "nobody"},
             "/var/log/auth.log":    {"permissions": "777", "owner": "nobody"},
             "/etc/crontab":         {"permissions": "666", "owner": "sanro"},
-            "/etc/hostname":        {"permissions": "644", "owner": "root"},
+            "/etc/hostname":        {"permissions": "644", "owner": "root"},  # decoy
         },
         "expected_state": {
             "files": {
@@ -66,10 +71,52 @@ TASKS: dict[str, dict[str, Any]] = {
             },
         },
         "penalties": {},
-        "log_context": [],
+        "log_context": [
+            "[DEPLOY] ERROR: provision_users.sh ran chown nobody:nobody on /etc/ssh/sshd_config",
+            "[DEPLOY] ERROR: log rotation script set /var/log/auth.log to 777",
+            "[DEPLOY] WARN: crontab owner changed from root to sanro during provisioning",
+            "[DEPLOY] OK: /etc/hostname unaffected by provisioning script",
+        ],
     },
 
-    # task 3: hard - files + services + traps
+    # task 3: medium - log server migration went wrong
+    "log_audit": {
+        "difficulty": "medium",
+        "description": "Fix logging infrastructure after a failed rsyslog migration.",
+        "ticket": (
+            "Central logging migration on logging-server-02 failed midway. "
+            "Log files and rsyslog config have wrong permissions and ownership. "
+            "Restore proper access controls so log collection resumes. "
+            "Note: audit.log was on a separate mount and was not affected."
+        ),
+        "host": "logging-server-02",
+        "incident": "log_migration_failure",
+        "available_actions": ["chmod", "chown", "ls", "stat"],
+        "max_steps": 10,
+        "initial_files": {
+            "/var/log/syslog":          {"permissions": "777", "owner": "nobody"},
+            "/var/log/auth.log":        {"permissions": "666", "owner": "nobody"},
+            "/etc/rsyslog.conf":        {"permissions": "777", "owner": "sanro"},
+            "/var/log/audit/audit.log": {"permissions": "640", "owner": "root"},  # decoy
+        },
+        "expected_state": {
+            "files": {
+                "/var/log/syslog":   {"permissions": "640", "owner": "syslog"},
+                "/var/log/auth.log": {"permissions": "640", "owner": "syslog"},
+                "/etc/rsyslog.conf": {"permissions": "644", "owner": "root"},
+            },
+        },
+        "penalties": {},
+        "log_context": [
+            "[MIGRATION] ERROR: rsyslog.conf permissions set to 777 during config copy",
+            "[MIGRATION] ERROR: /var/log/syslog ownership lost — now owned by nobody",
+            "[MIGRATION] WARN: /var/log/auth.log set to world-writable (mode 666)",
+            "[MIGRATION] OK: /var/log/audit/audit.log on separate mount — not affected",
+            "[SYSLOG] rsyslog stopped — cannot write to log files with current permissions",
+        ],
+    },
+
+    # task 4: hard - files + services + traps
     "incident_response": {
         "difficulty": "hard",
         "description": "Recover a Linux host after a bad config rollout with multiple security risks.",
@@ -91,7 +138,7 @@ TASKS: dict[str, dict[str, Any]] = {
         },
         "initial_services": {
             "telnet": "enabled",
-            "sshd":   "enabled",
+            "sshd":   "enabled",   # trap! don't disable this
         },
         "expected_state": {
             "files": {
@@ -108,7 +155,69 @@ TASKS: dict[str, dict[str, Any]] = {
             "chmod_777":    -0.3,
             "disable_sshd": -0.5,
         },
-        "log_context": [],
+        "log_context": [
+            "[COMPLIANCE] CRITICAL: /etc/shadow readable by non-root (mode 644, owner nobody)",
+            "[COMPLIANCE] CRITICAL: /etc/gshadow readable by non-root (mode 644, owner nobody)",
+            "[COMPLIANCE] HIGH: sshd_config owned by unprivileged user 'sanro' with mode 777",
+            "[COMPLIANCE] MEDIUM: /root/.bashrc has mode 666 and is owned by nobody",
+            "[COMPLIANCE] HIGH: telnet service is active on production database host",
+            "[COMPLIANCE] INFO: sshd is running — do NOT disable (required for remote access)",
+        ],
+    },
+
+    # task 5: hard - tls cert renewal gone bad + multiple trap services
+    "certificate_exposure": {
+        "difficulty": "hard",
+        "description": "Secure exposed TLS private keys and configs after a botched certificate renewal.",
+        "ticket": (
+            "URGENT: Certificate renewal script on web-proxy-01 ran with "
+            "wrong umask. TLS private keys are now world-readable. "
+            "Nginx config ownership was also corrupted. FTP is running "
+            "on this web proxy and must be disabled. "
+            "Do NOT disable nginx (HTTPS termination) or sshd (remote access)."
+        ),
+        "host": "web-proxy-01",
+        "incident": "certificate_exposure",
+        "available_actions": ["chmod", "chown", "disable_service", "ls", "stat"],
+        "max_steps": 12,
+        "initial_files": {
+            "/etc/ssl/private/server.key":     {"permissions": "644", "owner": "www-data"},
+            "/etc/ssl/certs/ca-bundle.crt":    {"permissions": "777", "owner": "nobody"},
+            "/etc/nginx/nginx.conf":           {"permissions": "666", "owner": "nobody"},
+            "/etc/nginx/sites-enabled/default": {"permissions": "644", "owner": "root"},  # decoy
+            "/var/log/nginx/error.log":        {"permissions": "777", "owner": "nobody"},
+        },
+        "initial_services": {
+            "ftp":   "enabled",    # insecure, disable this
+            "nginx": "enabled",    # trap! don't disable
+            "sshd":  "enabled",    # trap! don't disable
+        },
+        "expected_state": {
+            "files": {
+                "/etc/ssl/private/server.key":  {"permissions": "600", "owner": "root"},
+                "/etc/ssl/certs/ca-bundle.crt": {"permissions": "644", "owner": "root"},
+                "/etc/nginx/nginx.conf":        {"permissions": "644", "owner": "root"},
+                "/var/log/nginx/error.log":     {"permissions": "640", "owner": "www-data"},
+            },
+            "services": {
+                "ftp": "disabled",
+            },
+        },
+        "penalties": {
+            "chmod_777":     -0.3,
+            "disable_nginx": -0.4,
+            "disable_sshd":  -0.5,
+        },
+        "log_context": [
+            "[CERT-RENEW] CRITICAL: /etc/ssl/private/server.key is world-readable (mode 644)",
+            "[CERT-RENEW] ERROR: CA bundle /etc/ssl/certs/ca-bundle.crt set to mode 777",
+            "[CERT-RENEW] WARN: nginx.conf ownership changed to nobody with mode 666",
+            "[CERT-RENEW] OK: /etc/nginx/sites-enabled/default unchanged — no action needed",
+            "[CERT-RENEW] WARN: nginx error log permissions corrupted (mode 777, owner nobody)",
+            "[SECURITY] ALERT: FTP service running on production web proxy — must be disabled",
+            "[SECURITY] INFO: nginx must stay running for HTTPS termination",
+            "[SECURITY] INFO: sshd must stay running for remote management access",
+        ],
     },
 }
 
