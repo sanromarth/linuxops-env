@@ -149,6 +149,7 @@ TASKS: dict[str, dict[str, Any]] = {
             },
             "services": {
                 "telnet": "disabled",
+                "sshd":   "enabled",   # must stay enabled
             },
         },
         "penalties": {
@@ -200,7 +201,9 @@ TASKS: dict[str, dict[str, Any]] = {
                 "/var/log/nginx/error.log":     {"permissions": "640", "owner": "www-data"},
             },
             "services": {
-                "ftp": "disabled",
+                "ftp":   "disabled",
+                "nginx": "enabled",    # must stay enabled
+                "sshd":  "enabled",    # must stay enabled
             },
         },
         "penalties": {

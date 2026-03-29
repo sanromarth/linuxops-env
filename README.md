@@ -16,7 +16,7 @@ A Linux operations environment for training and evaluating AI agents on realisti
 [![Live Demo](https://img.shields.io/badge/🤗_Live_Demo-HuggingFace-FFD21E)](https://huggingface.co/spaces/sanromarth/linuxops-env)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-5 tasks · 5 action types · log context · penalty traps · [OpenEnv](https://github.com/open-env) spec compliant
+5 tasks · 5 action types · delta rewards · session isolation · log context · penalty traps · [OpenEnv](https://github.com/open-env) spec compliant
 
 ---
 
@@ -333,17 +333,28 @@ linuxops-env/
 │   ├── __init__.py        # package exports
 │   ├── models.py          # typed Pydantic models (OpenEnv spec)
 │   ├── tasks.py           # 5-task registry with incident tickets + log context
-│   ├── linux_env.py       # core environment engine
+│   ├── linux_env.py       # core environment engine (per-session)
 │   ├── grader.py          # grader with per-file breakdown
-│   └── reward.py          # reward function with penalties
-├── server.py              # FastAPI server (all endpoints)
-├── inference.py           # hackathon inference script (API_BASE_URL + MODEL_NAME + HF_TOKEN)
+│   └── reward.py          # delta reward function with penalties
+├── tests/
+│   └── test_env.py        # 22 tests: oracle, penalties, no-ops, traps
+├── server.py              # FastAPI server with session isolation
+├── inference.py           # inference script (API_BASE_URL + MODEL_NAME + HF_TOKEN)
 ├── baseline_agent.py      # oracle + LLM baseline agent
 ├── openenv.yaml           # OpenEnv manifest
-├── requirements.txt
+├── requirements.txt       # pinned dependencies
 ├── Dockerfile
 └── README.md
 ```
+
+---
+
+## Known Limitations
+
+- observations currently expose full file state (not partially observable yet)
+- service model uses enabled/disabled, not the full systemd active/enabled distinction
+- action space limited to 5 commands (no cat, grep, journalctl yet)
+- no multi-agent or concurrent evaluation support
 
 ---
 

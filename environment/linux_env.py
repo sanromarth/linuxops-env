@@ -29,9 +29,10 @@ class VirtualFileSystem:
         if any(c not in "01234567" for c in mode):
             return {"success": False, "error": f"Invalid mode: {mode}"}
         old = self.files[path]["permissions"]
+        changed = (old != mode)
         self.files[path]["permissions"] = mode
         return {"success": True, "command": f"chmod {mode} {path}",
-                "old": old, "new": mode, "path": path}
+                "old": old, "new": mode, "path": path, "changed": changed}
 
     def chown(self, path: str, owner: str) -> dict:
         if path not in self.files:
@@ -39,9 +40,10 @@ class VirtualFileSystem:
         if not owner or not owner.replace("_", "").replace("-", "").isalnum():
             return {"success": False, "error": f"Invalid owner: {owner}"}
         old = self.files[path]["owner"]
+        changed = (old != owner)
         self.files[path]["owner"] = owner
         return {"success": True, "command": f"chown {owner} {path}",
-                "old": old, "new": owner, "path": path}
+                "old": old, "new": owner, "path": path, "changed": changed}
 
     def ls(self, path: str) -> dict:
         if path not in self.files:
@@ -62,9 +64,10 @@ class VirtualFileSystem:
         if name not in self.services:
             return {"success": False, "error": f"Unknown service: {name}"}
         old = self.services[name]
+        changed = (old != "disabled")
         self.services[name] = "disabled"
         return {"success": True, "command": f"systemctl disable {name}",
-                "old": old, "new": "disabled", "service": name}
+                "old": old, "new": "disabled", "service": name, "changed": changed}
 
     def get_file_state(self) -> dict:
         return {p: dict(info) for p, info in self.files.items()}
@@ -86,6 +89,7 @@ class LinuxOpsEnvironment:
         self.done = False
         self.history: list[dict] = []
         self.cumulative_penalty = 0.0
+        self.prev_progress = 0.0
 
     def reset(self, task_id: str = "security_audit") -> dict:
         cfg = get_task(task_id)
@@ -97,6 +101,7 @@ class LinuxOpsEnvironment:
         self.done = False
         self.history = []
         self.cumulative_penalty = 0.0
+        self.prev_progress = 0.0
 
         self.fs = VirtualFileSystem(
             files=cfg["initial_files"],
@@ -134,6 +139,13 @@ class LinuxOpsEnvironment:
             is_readonly=(command in ("ls", "stat")),
             penalty=penalty,
             step_number=self.episode_steps,
+            prev_progress=self.prev_progress,
+        )
+
+        # update progress tracker after computing reward
+        from .reward import compute_progress
+        self.prev_progress = compute_progress(
+            self.fs, self.task_config["expected_state"]
         )
 
         self.done = self._is_complete()

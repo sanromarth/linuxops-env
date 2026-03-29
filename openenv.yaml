@@ -1,5 +1,5 @@
 name: linuxops-env
-version: "2.1.0"
+version: "2.2.0"
 description: >
   A Linux operations remediation environment for training and evaluating
   AI agents on security-sensitive configuration tasks. Agents inspect
@@ -40,9 +40,10 @@ actions:
 endpoints:
   reset: POST /reset
   step: POST /step
-  state: GET /state
-  grader: GET /grader
+  state: POST /state
+  grader: POST /grader
   tasks: GET /tasks
+  history: POST /history
   baseline: POST /baseline
 
 deployment:
