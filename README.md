@@ -9,21 +9,14 @@ pinned: false
 license: mit
 ---
 
-<div align="center">
-
 # LinuxOps-Env 🐧🔧
 
-**A Linux operations remediation environment for training and evaluating AI agents on real-world security-sensitive configuration tasks.**
+A Linux operations environment for training and evaluating AI agents on realistic sysadmin tasks.
 
-[![Live Demo](https://img.shields.io/badge/🤗_Live_Demo-HuggingFace-FFD21E?style=for-the-badge)](https://huggingface.co/spaces/sanromarth/linuxops-env)
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](Dockerfile)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/🤗_Live_Demo-HuggingFace-FFD21E)](https://huggingface.co/spaces/sanromarth/linuxops-env)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-*5 tasks · 5 action types · Typed observations · Log context · Penalty traps · OpenEnv spec compliant*
-
-</div>
+5 tasks · 5 action types · log context · penalty traps · [OpenEnv](https://github.com/open-env) spec compliant
 
 ---
 
@@ -179,24 +172,7 @@ A weak agent may issue many irrelevant commands or fall into traps. A stronger a
 }
 ```
 
-The `logs` field provides realistic simulated log/audit entries that give the agent contextual clues about what's wrong and what's safe. This is important because real Linux troubleshooting relies heavily on reading logs to guide diagnosis.
-
-### Action Design Goals
-
-The action space is built to test whether the agent can:
-- choose relevant commands
-- avoid unnecessary or destructive commands
-- reason from partial evidence (logs, file status)
-- verify before and after acting
-- complete tasks in a safe, logically ordered way
-
-### Observation Design Goals
-
-The environment is designed so the agent must:
-- inspect before acting
-- interpret log entries and status indicators
-- identify trap files (marked "ok") vs broken files ("critical"/"insecure")
-- confirm fixes through verification commands
+The `logs` field gives the agent clues about what went wrong and what's safe to touch. Real Linux troubleshooting depends on reading logs, so we include them in every observation.
 
 ---
 
@@ -292,20 +268,17 @@ Also supports **LLM inference mode** (`inference.py` or `baseline_agent.py --api
 
 ## How It Works
 
-```
-Agent  ──POST /reset──▶  Server loads broken state from task registry
-Agent  ◀── observation ── Agent sees broken files, services, log entries, ticket
-Agent  ──POST /step───▶  Agent sends repair command
-Agent  ◀── reward+obs ── Server returns updated state + reward + penalty info
-         ... repeat ...
-Judge  ──GET /grader──▶  Returns 0.0 → 1.0 score with per-file details
-```
+1. Agent calls `POST /reset` → gets broken system state + incident ticket
+2. Agent reads files, services, logs → decides what to fix first
+3. Agent calls `POST /step` with a repair action → gets updated state + reward
+4. Repeat until done or out of steps
+5. `GET /grader` returns final score (0.0 to 1.0) with per-file breakdown
 
 ---
 
 ## Inference Script
 
-The `inference.py` script is the hackathon-mandated entry point. It reads:
+The `inference.py` script is the main entry point for running an LLM agent against all tasks. It reads:
 
 | Variable | Purpose |
 |----------|---------|
@@ -328,16 +301,13 @@ python3 inference.py
 
 ---
 
-## Safety and Constraints
+## Safety
 
-LinuxOps-Env is built as a controlled environment for evaluation, not unrestricted shell automation.
-
-Key safety principles:
-- **Containerized execution** — runs in Docker, no host system access
-- **Virtual filesystem** — no real files are modified
-- **Reproducible resets** — same broken state every episode
-- **Penalty mechanics** — dangerous actions (chmod 777, disable sshd) are actively penalized
-- **No external dependencies** — no network calls, no privileged operations
+- Runs in Docker, no host access
+- Virtual filesystem — no real files are touched
+- Deterministic resets, same broken state every time
+- Dangerous actions (chmod 777, disable sshd) are penalized
+- No network calls or privileged operations
 
 ---
 
