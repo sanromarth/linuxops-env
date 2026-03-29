@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linuxops-env"
+version = "2.2.0"
+description = "A Linux operations remediation environment for training AI agents"
+readme = "README.md"
+authors = [
+  { name = "sankara rao" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn>=0.29.0,<1.0.0",
+    "pydantic>=2.6.0,<3.0.0",
+    "openai>=1.12.0,<2.0.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0.0,<9.0.0"
+]
